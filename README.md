@@ -27,3 +27,21 @@ name: Volvo
 url: https://support.volvocars.com/se/cars/pages/downloads-area.aspx?csid=mca&cstype=map&cscount=3&mc=y413&my=2014&sw=13w46#mapdownloaddetails&5360bf009bafa20cf40b1589
 filter: html | render | css('table#specs') | first | text | splitlines | slice(3) | list | tabulate
 ```
+
+Resulting in output:
+
+```
+https://support.volvocars.com/se/cars/pages/downloads-area.aspx?csid=mca&cstype=map&cscount=3&mc=y413&my=2014&sw=13w46#mapdownloaddetails&5360bf009bafa20cf40b1589 is CHANGED since ever
+--------------------------------------------------------------------------------
+--- last fetch  (never)
+
++++ current     2018-03-26T11:30:18
+
+@@ -0,0 +1,5 @@
+
++----------  ----------
++Publicerad  2017-09-29
++Utgåva      31676528
++CD-databas  MCA/17/09
++----------  ----------
+```
