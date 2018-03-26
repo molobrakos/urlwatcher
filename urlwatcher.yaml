@@ -1,0 +1,16 @@
+# --------------------------------------
+#
+# Copy to $(HOME)/config/urlwatcher.yaml
+#
+# --------------------------------------
+name: Volvo
+url: https://support.volvocars.com/se/cars/pages/downloads-area.aspx?csid=mca&cstype=map&cscount=3&mc=y413&my=2014&sw=13w46#mapdownloaddetails&5360bf009bafa20cf40b1589
+filter: html | render | css('table#specs') | first | text | splitlines | slice(3) | list | tabulate
+---
+name: Simple sample
+url: https://pste.eu/p/AFxX.html
+---
+url: http://downloads.slimdevices.com/nightly/index.php
+---
+url: http://www.google.com/search?q=current+time
+filter: html | render | css('div#ires') | first | text | splitlines | first

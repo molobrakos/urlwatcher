@@ -1,0 +1,209 @@
+#!/usr/bin/env python3
+# -*- mode: python; coding: utf-8 -*-
+"""
+Watch list of url:s for changes
+
+Usage:
+  urlwatcher (-h | --help)
+  urlwatcher --version
+  urlwatcher [-v|-vv] [options]
+  urlwatcher [-v|-vv] [options] clear
+
+Options:
+  -u <url>              URL
+  -h --help             Show this message
+  -v,-vv                Increase verbosity
+  --version             Show version
+"""
+
+import docopt
+from sys import argv, stdout, stderr
+from os.path import join, dirname, expanduser, basename
+from os import mkdir, environ as env
+from shutil import rmtree
+import logging
+from yaml import safe_load_all as load_yaml
+from requests_html import HTMLSession
+import jinja2
+import asyncio
+from hashlib import sha256
+from datetime import datetime
+from functools import partial
+
+__version__ = '0.0.1'
+
+
+LOGFMT = "%(asctime)s %(levelname)5s (%(threadName)s) [%(name)s] %(message)s"
+DATEFMT = "%y-%m-%d %H:%M.%S"
+
+_LOGGER = logging.getLogger(__name__)
+
+logging.getLogger('pyppeteer').setLevel(logging.WARNING)
+logging.getLogger('websockets').setLevel(logging.WARNING)
+
+
+CONFIG_FILE = join(env.get('XDG_CONFIG_HOME',
+                           join(expanduser('~'), '.config')),
+                   f'{basename(__file__)}.yaml')
+
+CACHE_DIR = join(env.get('XDG_CACHE_HOME',
+                         join(expanduser('~'), '.cache')),
+                 basename(__file__))
+
+SESSION = HTMLSession()
+
+from jinja2 import Template, Environment
+
+DEFAULT_FILTER = 'html | render | css("body") | first | text'
+
+def hash_str(s):
+    return sha256(s.encode('utf-8')).hexdigest()
+
+def color_print_diff(s):
+
+    def colored(s, color):
+        return '\033[9%dm%s\033[0m' % (color, s) if stdout.isatty() else s
+
+    (red, green, yellow, blue) = (partial(colored, color=idx) for idx in (1,2,3,4))
+
+    for line in s.splitlines():
+        if any(line.startswith(prefix) for prefix in ('---', '+++')):
+            print(line)
+        elif line.startswith('+'):
+            print(green(line))
+        elif line.startswith('-'):
+            print(red(line))
+        else:
+            print(line)
+
+
+def render(url, template):
+    _LOGGER.debug('Downloading %s', url)
+    response = SESSION.get(url)
+    template = f'{{{{{template}}}}}'
+    env = Environment()
+
+    def render(html):
+        _LOGGER.debug('Rendering HTML for %s', url)
+        html.render()
+        return html
+    
+    def tabulate(items):
+        from tabulate import tabulate
+        return tabulate(items)
+
+    def css(html, rule):
+        _LOGGER.debug('css rule %s, result: %s', rule, html.find(rule, first=True).text)
+        return html.find(rule)
+        
+    env.filters['css'] = css
+    env.filters['render'] = render
+    env.filters['text'] = lambda html: html.text
+    env.filters['splitlines'] = lambda x: x.splitlines()
+    env.filters['tabulate'] = lambda x: tabulate(x) 
+    template = env.from_string(template)
+    try:
+        _LOGGER.debug('Rendering template for %s', url)
+        return template.render(html=response.html)
+    except AttributeError as e:
+        _LOGGER.exception(e)
+
+
+def check(config):
+    url = config.get('url')
+    name = config.get('name', url)
+    template = config.get('filter', DEFAULT_FILTER)
+
+    if template == DEFAULT_FILTER:
+        _LOGGER.info('Using default filter for %s', url)
+    
+    if name != url:
+        _LOGGER.info('Checking %s: %s', name, url)
+    else:
+        _LOGGER.info('Checking %s', url)
+
+    cache_name = join(CACHE_DIR, hash_str(url))
+
+    new_content = render(url, template)
+    new_hash = hash_str(new_content)
+    new_timestamp = datetime.now().replace(microsecond=0).isoformat()
+    
+    try:
+        with open(cache_name) as f:
+            last_timestamp, last_hash = f.readline().split()
+            last_content = f.read()
+    except (FileNotFoundError, ValueError) as e:
+        _LOGGER.warning('Failed reading %s: %s', cache_name, e)
+        _LOGGER.debug('Fail reading %s', cache_name)
+        last_hash = last_timestamp = None
+        last_content = ""
+
+    if last_hash == new_hash:
+        _LOGGER.info("%s is unchanged since %s", url, last_timestamp)
+        return
+
+    print("%s is CHANGED since %s" % (url, last_timestamp or 'ever'))
+    print("-" * 80)
+
+    import difflib
+    diff = '\n'.join(
+        difflib.unified_diff(
+            last_content.splitlines(),
+            new_content.splitlines(),
+            'last fetch', 'current',
+            last_timestamp or '(never)', new_timestamp))
+    color_print_diff(diff)
+    
+    _LOGGER.debug('Saving state to %s', cache_name)
+    with open(cache_name, 'w') as f:
+        f.write('%s %s\n%s' % (new_timestamp, new_hash, new_content))
+    
+    
+# FIXME: parallellism
+# FIXME: url on command line
+
+def main():
+    """Command line interface."""
+    args = docopt.docopt(__doc__,
+                         version=__version__)
+
+    log_level = [logging.ERROR, logging.INFO, logging.DEBUG][args['-v']]
+
+    try:
+        import coloredlogs
+        coloredlogs.install(level=log_level,
+                            stream=stderr,
+                            datefmt=DATEFMT,
+                            fmt=LOGFMT)
+    except ImportError:
+        _LOGGER.debug("no colored logs. pip install coloredlogs?")
+        logging.basicConfig(level=log_level,
+                            stream=stderr,
+                            datefmt=DATEFMT,
+                            format=LOGFMT)
+
+    if args['clear']:
+        _LOGGER.info('Removing %s', CACHE_DIR)
+        rmtree(CACHE_DIR)
+        exit('Cache dir removed')
+        
+    try:
+        mkdir(CACHE_DIR)
+        _LOGGER.debug(f'Created {CACHE_DIR}')
+    except OSError:
+        _LOGGER.debug(f'{CACHE_DIR} already exists')
+
+    urls = []
+
+    try:
+        with open(CONFIG_FILE) as f:
+            urls = list(load_yaml(f))
+    except FileNotFoundError:
+        _LOGGER.warning(f'{CONFIG_FILE} does not exist')
+
+    for url in urls:
+        check(url)
+
+
+if __name__ == '__main__':
+   main()
