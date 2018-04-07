@@ -24,8 +24,7 @@ from shutil import rmtree
 import logging
 from yaml import safe_load_all as load_yaml
 from requests_html import HTMLSession
-import jinja2
-import asyncio
+from jinja2 import Template, Environment
 from hashlib import sha256
 from datetime import datetime
 from functools import partial
@@ -33,7 +32,7 @@ from functools import partial
 __version__ = '0.0.1'
 
 
-LOGFMT = "%(asctime)s %(levelname)5s (%(threadName)s) [%(name)s] %(message)s"
+LOGFMT = "%(asctime)s %(levelname)7s [%(name)s] %(message)s"
 DATEFMT = "%y-%m-%d %H:%M.%S"
 
 _LOGGER = logging.getLogger(__name__)
@@ -42,17 +41,17 @@ logging.getLogger('pyppeteer').setLevel(logging.WARNING)
 logging.getLogger('websockets').setLevel(logging.WARNING)
 
 
+# ~/.config/urlwatcher.yaml
 CONFIG_FILE = join(env.get('XDG_CONFIG_HOME',
                            join(expanduser('~'), '.config')),
                    f'{basename(__file__)}.yaml')
 
+# ~/.cache/urlwatcher/
 CACHE_DIR = join(env.get('XDG_CACHE_HOME',
                          join(expanduser('~'), '.cache')),
                  basename(__file__))
 
 SESSION = HTMLSession()
-
-from jinja2 import Template, Environment
 
 DEFAULT_FILTER = 'html | render | css("body") | first | text'
 
@@ -87,20 +86,20 @@ def render(url, template):
         _LOGGER.debug('Rendering HTML for %s', url)
         html.render()
         return html
-    
+
     def tabulate(items):
         from tabulate import tabulate
         return tabulate(items)
 
     def css(html, rule):
-        _LOGGER.debug('css rule %s, result: %s', rule, html.find(rule, first=True).text)
+        # _LOGGER.debug('css rule %s, result: %s', rule, html.find(rule, first=True).text)
         return html.find(rule)
-        
+
     env.filters['css'] = css
     env.filters['render'] = render
     env.filters['text'] = lambda html: html.text
     env.filters['splitlines'] = lambda x: x.splitlines()
-    env.filters['tabulate'] = lambda x: tabulate(x) 
+    env.filters['tabulate'] = lambda x: tabulate(x)
     template = env.from_string(template)
     try:
         _LOGGER.debug('Rendering template for %s', url)
@@ -115,19 +114,19 @@ def check(config):
     template = config.get('filter', DEFAULT_FILTER)
 
     if template == DEFAULT_FILTER:
-        _LOGGER.info('Using default filter for %s', url)
-    
+        _LOGGER.warning('Using default filter for %s', url)
+
     if name != url:
-        _LOGGER.info('Checking %s: %s', name, url)
+        _LOGGER.info('Checking %s: %s ...', name, url)
     else:
-        _LOGGER.info('Checking %s', url)
+        _LOGGER.info('Checking %s ...', url)
 
     cache_name = join(CACHE_DIR, hash_str(url))
 
     new_content = render(url, template)
     new_hash = hash_str(new_content)
     new_timestamp = datetime.now().replace(microsecond=0).isoformat()
-    
+
     try:
         with open(cache_name) as f:
             last_timestamp, last_hash = f.readline().split()
@@ -139,7 +138,7 @@ def check(config):
         last_content = ""
 
     if last_hash == new_hash:
-        _LOGGER.info("%s is unchanged since %s", url, last_timestamp)
+        _LOGGER.info("... %s is unchanged since %s", url, last_timestamp)
         return
 
     print("%s is CHANGED since %s" % (url, last_timestamp or 'ever'))
@@ -153,12 +152,12 @@ def check(config):
             'last fetch', 'current',
             last_timestamp or '(never)', new_timestamp))
     color_print_diff(diff)
-    
+
     _LOGGER.debug('Saving state to %s', cache_name)
     with open(cache_name, 'w') as f:
         f.write('%s %s\n%s' % (new_timestamp, new_hash, new_content))
-    
-    
+
+
 # FIXME: parallellism
 # FIXME: url on command line
 
@@ -186,7 +185,7 @@ def main():
         _LOGGER.info('Removing %s', CACHE_DIR)
         rmtree(CACHE_DIR)
         exit('Cache dir removed')
-        
+
     try:
         mkdir(CACHE_DIR)
         _LOGGER.debug(f'Created {CACHE_DIR}')
