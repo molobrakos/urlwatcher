@@ -13,8 +13,14 @@ RUN set -x \
   && rm -rf /var/lib/apt/lists/* \
   && rm -rf /tmp/* \
   && rm -rf /var/tmp/* \
-  && git clone https://github.com/molobrakos/urlwatcher.git \
-  && pip install -r urlwatcher/requirements.txt \
   ;
 
-ENTRYPOINT urlwatcher/urlwatcher
+COPY requirements.txt /app
+
+RUN pip install -r requirements.txt \
+  && rm requirements.txt \
+  ;
+
+COPY urlwatcher /app
+
+ENTRYPOINT urlwatcher
