@@ -14,8 +14,7 @@ RUN set -x \
   && rm -rf /tmp/* \
   && rm -rf /var/tmp/* \
   && git clone https://github.com/molobrakos/urlwatcher.git \
-  && pip install docopt requests_html pyyaml jinja2 \ 
-  #-r urlwatcher/requirements.txt \
+  && pip install -r urlwatcher/requirements.txt \
   ;
 
 ENTRYPOINT urlwatcher/urlwatcher
