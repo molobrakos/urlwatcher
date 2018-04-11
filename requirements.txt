@@ -1,0 +1,4 @@
+docopt
+requests_html
+pyyaml
+jinja2
