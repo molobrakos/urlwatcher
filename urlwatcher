@@ -79,11 +79,12 @@ def color_print_diff(s):
 
 
 def render(url, template):
-    _LOGGER.debug('Downloading %s', url)
-    response = SESSION.get(url)
-    template = f'{{{{{template}}}}}'
+    template = '{{' + template + '}}'
     env = Environment()
 
+    _LOGGER.debug('Downloading %s', url)
+    response = SESSION.get(url)
+    
     def render(html):
         _LOGGER.debug('Rendering HTML for %s', url)
         html.render()
