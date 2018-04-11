@@ -21,6 +21,6 @@ RUN pip install -r requirements.txt \
   && rm requirements.txt \
   ;
 
-COPY urlwatcher /app
+COPY urlwatcher .
 
-ENTRYPOINT urlwatcher
+ENTRYPOINT ./urlwatcher
