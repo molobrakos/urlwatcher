@@ -28,6 +28,8 @@ from jinja2 import Template, Environment
 from hashlib import sha256
 from datetime import datetime
 from functools import partial
+from difflib import unified_diff
+from tabulate import tabulate
 
 __version__ = '0.0.1'
 
@@ -87,19 +89,16 @@ def render(url, template):
         html.render()
         return html
 
-    def tabulate(items):
-        from tabulate import tabulate
-        return tabulate(items)
-
     def css(html, rule):
         # _LOGGER.debug('css rule %s, result: %s', rule, html.find(rule, first=True).text)
         return html.find(rule)
 
-    env.filters['css'] = css
-    env.filters['render'] = render
-    env.filters['text'] = lambda html: html.text
-    env.filters['splitlines'] = lambda x: x.splitlines()
-    env.filters['tabulate'] = lambda x: tabulate(x)
+    env.filters.update(
+        css=css,
+        render=render,
+        text=lambda html: html.text,
+        splitlines=lambda x: x.splitlines(),
+        tabulate=tabulate)
     template = env.from_string(template)
     try:
         _LOGGER.debug('Rendering template for %s', url)
@@ -127,15 +126,15 @@ def check(config):
     new_hash = hash_str(new_content)
     new_timestamp = datetime.now().replace(microsecond=0).isoformat()
 
+    last_timestamp = last_hash = None
+    last_content = ""
+
     try:
         with open(cache_name) as f:
             last_timestamp, last_hash = f.readline().split()
             last_content = f.read()
     except (FileNotFoundError, ValueError) as e:
         _LOGGER.warning('Failed reading %s: %s', cache_name, e)
-        _LOGGER.debug('Fail reading %s', cache_name)
-        last_hash = last_timestamp = None
-        last_content = ""
 
     if last_hash == new_hash:
         _LOGGER.info("... %s is unchanged since %s", url, last_timestamp)
@@ -144,9 +143,8 @@ def check(config):
     print("%s is CHANGED since %s" % (url, last_timestamp or 'ever'))
     print("-" * 80)
 
-    import difflib
     diff = '\n'.join(
-        difflib.unified_diff(
+        unified_diff(
             last_content.splitlines(),
             new_content.splitlines(),
             'last fetch', 'current',
@@ -192,13 +190,11 @@ def main():
     except OSError:
         _LOGGER.debug(f'{CACHE_DIR} already exists')
 
-    urls = []
-
     try:
         with open(CONFIG_FILE) as f:
             urls = list(load_yaml(f))
     except FileNotFoundError:
-        _LOGGER.warning(f'{CONFIG_FILE} does not exist')
+        exit(f'{CONFIG_FILE} does not exist')
 
     for url in urls:
         check(url)
