@@ -20,10 +20,15 @@ RUN set -x \
   && rm -rf /tmp/* \
   && rm -rf /var/tmp/*
 
-COPY requirements.txt .
-RUN pip install -r requirements.txt && \
-    rm requirements.txt
+COPY requirements.txt /app
 
-RUN git clone https://github.com/molobrakos/urlwatcher.git
-
-ENTRYPOINT urlwatcher/urlwatcher
+RUN pip --no-cache-dir --trusted-host pypi.org install -r requirements.txt \
+  && rm requirements.txt \
+  ;
+	
+USER urlwatcher
+	
+COPY urlwatcher .
+	
+ENTRYPOINT [ "dumb-init", "--", "./urlwatcher" ]
+	
