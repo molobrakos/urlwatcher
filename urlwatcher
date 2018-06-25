@@ -159,7 +159,6 @@ def check(config):
 
 
 # FIXME: parallellism
-# FIXME: url on command line
 
 def main():
     """Command line interface."""
