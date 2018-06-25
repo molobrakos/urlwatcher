@@ -85,7 +85,7 @@ def render(url, template):
 
     _LOGGER.debug('Downloading %s', url)
     response = SESSION.get(url)
-    
+
     def render(html):
         _LOGGER.debug('Rendering HTML for %s', url)
         html.render()
@@ -196,9 +196,10 @@ def main():
         urls = [dict(url=args['-u'])]
     else:
         try:
-            with open(CONFIG_FILE) as f:
+            _LOGGER.debug('Reading urls from %s', CONFIG_FILE)
+            with open(CONFIG_FILE, 'r') as f:
                 urls = list(load_yaml(f))
-        except FileNotFoundError:
+        except FileNotFoundError, IsADirectoryError:
             exit(f'{CONFIG_FILE} does not exist')
 
     for url in urls:
