@@ -1,4 +1,4 @@
-FROM python:3.6-slim
+FROM python:3.6-slim-stretch
 
 WORKDIR /app
 
@@ -6,8 +6,9 @@ VOLUME /cache
 
 RUN set -x \
   && apt-get update \
+  && apt-cache search dumb-init \
   && apt-get install -y \
-  git gcc libxml2-dev \
+  git gcc libxml2-dev dumb-init \
   \
   # install lib deps for chrome
   # see https://github.com/GoogleChrome/puppeteer/blob/master/docs/troubleshooting.md#running-puppeteer-in-docker
@@ -19,16 +20,18 @@ RUN set -x \
   && rm -rf /var/lib/apt/lists/* \
   && rm -rf /tmp/* \
   && rm -rf /var/tmp/*
+  && rm -rf /var/tmp/* \
+  && useradd -M --home-dir /app urlwatcher \
+  ;
 
 COPY requirements.txt /app
 
 RUN pip --no-cache-dir --trusted-host pypi.org install -r requirements.txt \
   && rm requirements.txt \
   ;
-	
+
 USER urlwatcher
-	
+
 COPY urlwatcher .
-	
+
 ENTRYPOINT [ "dumb-init", "--", "./urlwatcher" ]
-	

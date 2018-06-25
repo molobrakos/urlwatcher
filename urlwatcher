@@ -41,7 +41,8 @@ _LOGGER = logging.getLogger(__name__)
 
 logging.getLogger('pyppeteer').setLevel(logging.WARNING)
 logging.getLogger('websockets').setLevel(logging.WARNING)
-
+#logging.getLogger('pyppeteer').setLevel(logging.DEBUG)
+#logging.getLogger('websockets').setLevel(logging.DEBUG)
 
 # ~/.config/urlwatcher.yaml
 CONFIG_FILE = join(env.get('XDG_CONFIG_HOME',
@@ -84,7 +85,7 @@ def render(url, template):
 
     _LOGGER.debug('Downloading %s', url)
     response = SESSION.get(url)
-    
+
     def render(html):
         _LOGGER.debug('Rendering HTML for %s', url)
         html.render()
@@ -158,7 +159,6 @@ def check(config):
 
 
 # FIXME: parallellism
-# FIXME: url on command line
 
 def main():
     """Command line interface."""
@@ -191,11 +191,15 @@ def main():
     except OSError:
         _LOGGER.debug(f'{CACHE_DIR} already exists')
 
-    try:
-        with open(CONFIG_FILE) as f:
-            urls = list(load_yaml(f))
-    except FileNotFoundError:
-        exit(f'{CONFIG_FILE} does not exist')
+    if args['-u']:
+        urls = [dict(url=args['-u'])]
+    else:
+        try:
+            _LOGGER.debug('Reading urls from %s', CONFIG_FILE)
+            with open(CONFIG_FILE, 'r') as f:
+                urls = list(load_yaml(f))
+        except FileNotFoundError, IsADirectoryError:
+            exit(f'{CONFIG_FILE} does not exist')
 
     for url in urls:
         check(url)
