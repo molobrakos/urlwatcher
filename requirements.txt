@@ -2,3 +2,4 @@ docopt
 requests_html
 pyyaml
 jinja2
+tabulate
